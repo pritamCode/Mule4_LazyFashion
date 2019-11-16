@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	
+	
+	<flow name="insertSalesforceRecord" doc:id="1fd560de-c32c-4804-84cc-8f5e69446400" >
+		<ee:transform doc:name="Transform Message" doc:id="b552b43b-2ffa-45b2-afbe-03200a8e5375" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Name" : payload.name ,
+	"email__c": payload.email ,
+	"phone__c" : payload.phone ,
+	"address__c" : payload.address
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:create-single type="Customer__c" doc:name="Create single" doc:id="1758a993-3925-468d-97d2-5b9f63bd5af6" config-ref="Salesforce_Config"/>
+		<ee:transform doc:name="Transform Message" doc:id="91683cc3-a021-487f-ae20-da2e391eae2e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "message" : if(payload.id != null) 
+  				   "record created with Id " ++ (payload.id default "") 
+  			  else "fail while creating object"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="16c2144b-ac33-4b17-94cf-ca3d25b02b3a" >
+				<set-payload value='#["Error While creating record"]' doc:name="Set Payload" doc:id="1e33e605-400f-4b48-9372-c8d09fd90987" />
+			</on-error-continue>
+		</error-handler>
+	</flow>
+	<flow name="getAllSalesforceRecord" doc:id="8fb339cc-bd45-4224-808f-10fd6ca6c8cb" >
+		<salesforce:query doc:name="Query" doc:id="a5c0a7a7-2e0a-4fbb-9ffd-34b2c818bed8" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query >select Id, Name, email__c, phone__c, address__c from customer__c</salesforce:salesforce-query>
+		</salesforce:query>
+		<ee:transform doc:name="Transform Message" doc:id="bfe7bebd-a732-46ed-84ac-7772f7cee4ae" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="updateCustomerDetailsById" doc:id="78c9d029-1bb7-4950-94de-2a23a093365f" >
+		<ee:transform doc:name="Transform Message" doc:id="f4fb8b36-9cc5-44f2-a578-a5eaf2eeaaed" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[output application/json skipNullOn="everywhere"
+---
+{
+ "Id" : vars.Id,
+ "email__c": payload.email default "",
+ "address__c" : payload.address default "",
+ "phone__c" : payload.phone
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:update-single doc:name="Update single" doc:id="b2162925-29e2-4fba-b03c-c45638a14669" config-ref="Salesforce_Config" type="Customer__c"/>
+		<ee:transform doc:name="Transform Message" doc:id="d0f6a9b8-3f10-40d1-9009-514a6f37b599" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="InsertAllRecordToDB" doc:id="c7e537cf-2b4d-4e04-a15d-568d1013cb34" >
+		<scheduler doc:name="Scheduler" doc:id="e87f9f77-c48c-4cea-8b11-a7f40a1f3d54" >
+			<scheduling-strategy >
+				<cron expression="0 24 14 ? * *" timeZone="America" />
+			</scheduling-strategy>
+		</scheduler>
+		<flow-ref doc:name="getAllSalesforceRecord" doc:id="231d2ee6-b25b-4d46-a0b9-a3e907eb3bf6" name="getAllSalesforceRecord"/>
+		<choice doc:name="Choice" doc:id="d0a5e43d-7d51-4ac1-988a-fb260dd7f91d" >
+			<when expression="#[sizeOf(payload) &gt; 0]">
+				<db:bulk-insert doc:name="Bulk insert" doc:id="a1144880-f5c3-4e4e-b7d5-eac54a580240" config-ref="Database_Config">
+			<db:sql>INSERT INTO  customer(address__c, phone__c, email__c, Id, type, Name)
+VALUES (:address__c, :phone__c, :email__c, :Id, :type, :Name)</db:sql>
+		</db:bulk-insert>
+				<ee:transform doc:name="Transform Message" doc:id="fdf0e4b1-548e-41b6-8a62-41c04a5668b2" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+if(sizeOf(payload) > 0)
+	"Records Inserted successfully"
+else "records not inserted"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="945d285b-848c-4522-ba4c-141c75086a31">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+"No records to insert"]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="c12d2acc-ed67-4bdf-82fa-54f2f63922f5" >
+				<set-payload value='#["Error while inserting record to DB"]' doc:name="Set Payload" doc:id="b29b716f-ce99-41f6-9cc9-6a0506e0772b" />
+			</on-error-continue>
+		</error-handler>
+	</flow>
+</mule>

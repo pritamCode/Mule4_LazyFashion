@@ -1,0 +1,51 @@
+#%RAML 1.0
+version: 1.0
+title: LazyFashion
+
+types:
+  Customer:
+    properties: 
+      name: string
+      phone: number
+      email: string
+      address : string
+
+/customer:
+  get:
+    description: get customer details from salesforce
+    responses:
+      200:
+        body:
+          application/json:
+            type: Customer
+            example: |
+               {
+                "name" : "customer name",
+                "phone" : 1231231231,
+                "email" : "customer@email.com",
+                "address" : "customer address"
+               }
+  post:
+    description: inserting customer record in salesforce
+    responses:
+      201:
+        body:
+          application/json:
+            example: |
+              {
+                "message" : "customer record inserted successfully"
+              }
+
+  /{Id}:
+      put:
+        description: "updating customer address in salesforce"
+        responses:
+          200:
+            body:
+              application/json:
+                example: |
+                  {
+                   "message" : "customer address updated successfully"
+                  }
+                  
+            
